@@ -20,9 +20,9 @@ void init_matrix(Matrix *m, int nrow, int ncol)
     m->row_eff = nrow;
     m->col_eff = ncol;
 
-    for (int i = 0; i < m->row_eff; i++)
+    for (int i = 0; i < nrow; i++)
     {
-        for (int j = 0; j < m->col_eff; j++)
+        for (int j = 0; j < ncol; j++)
         {
             m->mat[i][j] = 0;
         }
@@ -59,55 +59,54 @@ void print_matrix(Matrix *m)
 
 int main(int argc, char **argv)
 {
-    MPI_Init(&argc, &argv);
+    if (MPI_Init(&argc, &argv) != MPI_SUCCESS)
+    {
+        perror("Error initializing MPI\n");
+        exit(1);
+    }
 
-    // Get number of processes
-    int size;
+    int size, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-    // Get process rank
-    int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    // Get matrices from user inputs
-    int kernel_row, kernel_col, num_targets, target_row, target_col;
-
-    // reads kernel's row and column and initalize kernel matrix from input
-    scanf("%d %d", &kernel_row, &kernel_col);
-    Matrix kernel = input_matrix(kernel_row, kernel_col);
-
-    // reads number of target matrices and their dimensions.
-    // initialize array of matrices and array of data ranges (int)
-    scanf("%d %d %d", &num_targets, &target_row, &target_col);
-    Matrix *arr_mat = (Matrix *)malloc(num_targets * sizeof(Matrix));
-
-    for (int i = 0; i < num_targets; i++)
-    {
-        arr_mat[i] = input_matrix(target_row, target_col);
-    }
-
-    // Get number of matrices per process
-    int num_mat_per_proc = ceil(num_targets / size);
-
-    // Init local matrices and scatter the global matrices
-    Matrix *local_mats = (Matrix *)malloc(num_mat_per_proc * sizeof(Matrix));
-    MPI_Scatter(arr_mat, sizeof(local_mats), MPI_BYTE, &local_mats, sizeof(local_mats), MPI_BYTE, 0, MPI_COMM_WORLD);
-
+    Matrix *arr_m;
+    int num_targets;
     if (rank == 0)
     {
-        // Range arrays -> array of convolution results
-        int arr_range[num_targets];
-        printf("From master \n");
+        int target_row, target_col;
 
-        for (int i = 0; i < 3; i++)
+        scanf("%d %d %d", &num_targets, &target_row, &target_col);
+
+        if ((arr_m = malloc(num_targets * sizeof(Matrix))) == nil)
         {
-            print_matrix(&arr_mat[i]);
+            printf("Malloc error 1\n");
+            exit(1);
+        }
+
+        for (int i = 0; i < num_targets; i++)
+        {
+            arr_m[i] = input_matrix(target_row, target_col);
         }
     }
-    else
+
+    if (MPI_Bcast(&num_targets, 1, MPI_INT, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
     {
-        printf("From slave %d = \n", rank);
-        print_matrix(&local_mats[0]);
+        perror("Failed broadcast\n");
+        exit(1);
+    }
+
+    int num_m_per_proc = ceil(num_targets / size);
+    Matrix *curr_m;
+    if ((curr_m = malloc(num_m_per_proc * sizeof(Matrix))) == nil)
+    {
+        printf("Malloc error 2\n");
+        exit(1);
+    }
+
+    if (MPI_Scatter(arr_m, sizeof(curr_m), MPI_BYTE, curr_m, sizeof(curr_m), MPI_BYTE, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
+    {
+        perror("Scatter error\n");
+        exit(1);
     }
 
     MPI_Finalize();
