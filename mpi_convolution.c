@@ -57,6 +57,11 @@ void print_matrix(Matrix *m)
     }
 }
 
+int integer_ceil(int a, int b)
+{
+    return a / b + (a % b != 0);
+}
+
 int main(int argc, char **argv)
 {
     if (MPI_Init(&argc, &argv) != MPI_SUCCESS)
@@ -70,6 +75,7 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     Matrix *arr_m;
+    Matrix kernel;
     int num_targets;
     int *displs, *sendcount;
 
@@ -79,10 +85,12 @@ int main(int argc, char **argv)
 
     if (rank == 0)
     {
-        int target_row, target_col;
+        // Scan users' input
+        int kernel_row, kernel_col, target_row, target_col;
+        scanf("%d %d", &kernel_row, &kernel_col);
+        kernel = input_matrix(kernel_row, kernel_col);
 
         scanf("%d %d %d", &num_targets, &target_row, &target_col);
-
         if ((arr_m = malloc(num_targets * sizeof(Matrix))) == nil)
         {
             printf("Malloc error 1\n");
@@ -94,28 +102,28 @@ int main(int argc, char **argv)
             arr_m[i] = input_matrix(target_row, target_col);
         }
 
+        // Map Scatterv arguments
         int remaining_matrices = num_targets;
         for (int i = 0; i < size; i++)
         {
-            int n = remaining_matrices / size + (remaining_matrices % size != 0);
+            int n = integer_ceil(remaining_matrices, size);
             remaining_matrices -= n;
 
             sendcount[i] = n * sizeof(Matrix);
-            if (i != 0)
-            {
-                displs[i] = i * sendcount[i - 1];
-            }
+            displs[i] = i == 0 ? 0 : i * sendcount[i - 1];
 
             local_mat_sizes[i] = n;
         }
     }
 
-    if (MPI_Bcast(&num_targets, 1, MPI_INT, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
+    // BCast Kernel
+    if (MPI_Bcast(&kernel, sizeof(kernel), MPI_BYTE, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
     {
         perror("Failed broadcast\n");
         exit(1);
     }
 
+    // Scatter size of each local array
     int local_mat_size;
     if (MPI_Scatter(local_mat_sizes, sizeof(int), MPI_BYTE, &local_mat_size, sizeof(int), MPI_BYTE, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
     {
@@ -123,6 +131,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    // Malloc local matrices based on its own size
     Matrix *local_mat;
     if ((local_mat = malloc(local_mat_size * sizeof(Matrix))) == nil)
     {
@@ -130,6 +139,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    // Scatterv input matrices based on the number of matrices in each local array of matrices
     if (MPI_Scatterv(arr_m, sendcount, displs, MPI_BYTE, local_mat, sizeof(*local_mat) * local_mat_size, MPI_BYTE, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
     {
         perror("Scatter error 2\n");
