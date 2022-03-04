@@ -101,11 +101,7 @@ int main(int argc, char **argv)
             remaining_matrices -= n;
 
             sendcount[i] = n * sizeof(Matrix);
-            if (i == 0)
-            {
-                displs[i] = 0;
-            }
-            else
+            if (i != 0)
             {
                 displs[i] = i * sendcount[i - 1];
             }
