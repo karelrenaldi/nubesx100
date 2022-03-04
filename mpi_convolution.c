@@ -71,6 +71,10 @@ int main(int argc, char **argv)
 
     Matrix *arr_m;
     int num_targets;
+    int *displs, *sendcount, remaining_matrices = num_targets;
+    size_t *local_mat_sizes = malloc(size * sizeof(size_t));
+    sendcount = (int *)malloc(size * (sizeof(int)));
+    displs = (int *)malloc(size * (sizeof(int)));
     if (rank == 0)
     {
         int target_row, target_col;
@@ -87,6 +91,17 @@ int main(int argc, char **argv)
         {
             arr_m[i] = input_matrix(target_row, target_col);
         }
+
+        for (int i = 0; i < size; i++)
+        {
+            int n = ceil(remaining_matrices / size);
+            remaining_matrices -= n;
+            sendcount[i] = n;
+
+            displs[i] = 0;
+            printf("%d\n", n);
+            local_mat_sizes[i] = n * sizeof(Matrix);
+        }
     }
 
     if (MPI_Bcast(&num_targets, 1, MPI_INT, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
@@ -95,18 +110,57 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    int num_m_per_proc = ceil(num_targets / size);
-    Matrix *curr_m;
-    if ((curr_m = malloc(num_m_per_proc * sizeof(Matrix))) == nil)
+    size_t local_mat_size;
+    if (MPI_Scatter(local_mat_sizes, 1, MPI_UNSIGNED_LONG, &local_mat_size, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
     {
-        printf("Malloc error 2\n");
+        perror("Scatter error 1\n");
         exit(1);
     }
 
-    if (MPI_Scatter(arr_m, sizeof(curr_m), MPI_BYTE, curr_m, sizeof(curr_m), MPI_BYTE, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
+    Matrix *local_mat;
+    if ((local_mat = malloc(local_mat_size)) == nil)
     {
-        perror("Scatter error\n");
+        perror("Malloc error 2\n");
         exit(1);
+    }
+
+    if (MPI_Scatterv(arr_m, sendcount, displs, MPI_BYTE, local_mat, sizeof(*local_mat), MPI_BYTE, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
+    {
+        perror("Scatter error 2\n");
+        exit(1);
+    }
+
+    int num_m_per_proc = 2;
+    for (int i = 0; i < num_m_per_proc; i++)
+    {
+        local_mat[i].col_eff = 3;
+        local_mat[i].row_eff = 3;
+    }
+
+    printf("rank %d got numtarget of %d nummat %d\n", rank, num_targets, num_m_per_proc);
+    if (rank == 1)
+    {
+        printf("from 1 %d %d\n", local_mat->col_eff, local_mat->row_eff);
+        for (int i = 0; i < num_m_per_proc; i++)
+        {
+            print_matrix(&local_mat[i]);
+        }
+    }
+    else if (rank == 0)
+    {
+        printf("from 0 %d %d\n", local_mat->col_eff, local_mat->row_eff);
+        for (int i = 0; i < num_m_per_proc; i++)
+        {
+            print_matrix(&local_mat[i]);
+        }
+    }
+    else
+    {
+        printf("from 3 %d %d\n", local_mat->col_eff, local_mat->row_eff);
+        for (int i = 0; i < num_m_per_proc; i++)
+        {
+            print_matrix(&local_mat[i]);
+        }
     }
 
     MPI_Finalize();
