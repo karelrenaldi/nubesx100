@@ -57,9 +57,67 @@ void print_matrix(Matrix *m)
     }
 }
 
+void merge_array(int *n, int left, int mid, int right)
+{
+    int n_left = mid - left + 1;
+    int n_right = right - mid;
+    int iter_left = 0, iter_right = 0, iter_merged = left;
+    int arr_left[n_left], arr_right[n_right];
+
+    for (int i = 0; i < n_left; i++)
+    {
+        arr_left[i] = n[i + left];
+    }
+
+    for (int i = 0; i < n_right; i++)
+    {
+        arr_right[i] = n[i + mid + 1];
+    }
+
+    while (iter_left < n_left && iter_right < n_right)
+    {
+        if (arr_left[iter_left] <= arr_right[iter_right])
+        {
+            n[iter_merged] = arr_left[iter_left++];
+        }
+        else
+        {
+            n[iter_merged] = arr_right[iter_right++];
+        }
+        iter_merged++;
+    }
+
+    while (iter_left < n_left)
+    {
+        n[iter_merged++] = arr_left[iter_left++];
+    }
+    while (iter_right < n_right)
+    {
+        n[iter_merged++] = arr_right[iter_right++];
+    }
+}
+
+void merge_sort(int *n, int left, int right)
+{
+    if (left < right)
+    {
+        int mid = left + (right - left) / 2;
+
+        merge_sort(n, left, mid);
+        merge_sort(n, mid + 1, right);
+
+        merge_array(n, left, mid, right);
+    }
+}
+
 int integer_ceil(int a, int b)
 {
     return a / b + (a % b != 0);
+}
+
+int randomv(int rank)
+{
+    return rank + rand();
 }
 
 int main(int argc, char **argv)
@@ -77,7 +135,7 @@ int main(int argc, char **argv)
     Matrix *arr_m;
     Matrix kernel;
     int num_targets;
-    int *displs, *sendcount;
+    int *displs, *sendcount, *sorted_range;
 
     int *local_mat_sizes = malloc(size * sizeof(int));
     sendcount = (int *)malloc(size * (sizeof(int)));
@@ -94,6 +152,12 @@ int main(int argc, char **argv)
         if ((arr_m = malloc(num_targets * sizeof(Matrix))) == nil)
         {
             printf("Malloc error 1\n");
+            exit(1);
+        }
+
+        if ((sorted_range = malloc(size * sizeof(int))) == nil)
+        {
+            printf("Malloc error 2\n");
             exit(1);
         }
 
@@ -135,7 +199,7 @@ int main(int argc, char **argv)
     Matrix *local_mat;
     if ((local_mat = malloc(local_mat_size * sizeof(Matrix))) == nil)
     {
-        perror("Malloc error 2\n");
+        perror("Malloc error 3\n");
         exit(1);
     }
 
@@ -146,5 +210,55 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    int local_result = randomv(rank);
+    int *local_sorted_array;
+    if ((local_sorted_array = malloc(sizeof(int))) == nil)
+    {
+        perror("Malloc error 4\n");
+        exit(1);
+    }
+    printf("From rank %d %d", rank, local_result);
+
+    int divisor = 2;
+    int even_size = size % 2 == 0;
+    while (divisor <= size)
+    {
+        if (even_size)
+        {
+            if (rank % 2 == 0)
+            {
+                int current_length = sizeof(&local_sorted_array) / sizeof(&local_sorted_array[0]);
+                if (current_length < 2)
+                {
+                    if ((local_sorted_array = realloc(local_sorted_array, 2 * current_length * sizeof(int))) == nil)
+                    {
+                        perror("Realloc error from rank %d\n", rank);
+                        exit(1);
+                    }
+                    // Recv from rank + 1
+                    MPI_Recv(&)
+                }
+                else
+                {
+                    // Recv from rank + 2
+                    MPI_Recv(&)
+                }
+            }
+        }
+        else
+        {
+            if (rank % 2 == 0)
+            {
+            }
+        }
+
+        divisor *= 2;
+    }
+
+    if (rank == 0)
+    {
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
 }
