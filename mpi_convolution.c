@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include <math.h>
 #include <mpi.h>
+#include <time.h>
 
 #define nil NULL
 #define NMAX 100
 #define DATAMAX 1000
 #define DATAMIN -1000
+#define ROOT_RANK 0
 
 typedef struct Matrix
 {
@@ -115,9 +117,30 @@ int integer_ceil(int a, int b)
     return a / b + (a % b != 0);
 }
 
-int randomv(int rank)
+int openmp(int rank)
 {
-    return rank + rand();
+    srand(time(NULL) + rank);
+    return rand();
+}
+
+int get_median(int *n, int length)
+{
+    int mid = length / 2;
+    if (length & 1)
+        return n[mid];
+
+    return (n[mid - 1] + n[mid]) / 2;
+}
+
+long get_floored_mean(int *n, int length)
+{
+    long sum = 0;
+    for (int i = 0; i < length; i++)
+    {
+        sum += n[i];
+    }
+
+    return sum / length;
 }
 
 int main(int argc, char **argv)
@@ -135,13 +158,12 @@ int main(int argc, char **argv)
     Matrix *arr_m;
     Matrix kernel;
     int num_targets;
-    int *displs, *sendcount, *sorted_range;
-
+    int *global_results_array;
     int *local_mat_sizes = malloc(size * sizeof(int));
-    sendcount = (int *)malloc(size * (sizeof(int)));
-    displs = (int *)malloc(size * (sizeof(int)));
+    int *sendcount = malloc(size * (sizeof(int)));
+    int *displs = malloc(size * (sizeof(int)));
 
-    if (rank == 0)
+    if (rank == ROOT_RANK)
     {
         // Scan users' input
         int kernel_row, kernel_col, target_row, target_col;
@@ -151,13 +173,7 @@ int main(int argc, char **argv)
         scanf("%d %d %d", &num_targets, &target_row, &target_col);
         if ((arr_m = malloc(num_targets * sizeof(Matrix))) == nil)
         {
-            printf("Malloc error 1\n");
-            exit(1);
-        }
-
-        if ((sorted_range = malloc(size * sizeof(int))) == nil)
-        {
-            printf("Malloc error 2\n");
+            printf("Malloc error arr_m\n");
             exit(1);
         }
 
@@ -178,20 +194,33 @@ int main(int argc, char **argv)
 
             local_mat_sizes[i] = n;
         }
+
+        // Malloc arrays
+        if ((global_results_array = malloc(num_targets * sizeof(int))) == nil)
+        {
+            perror("Malloc error global_results\n");
+            exit(1);
+        }
     }
 
     // BCast Kernel
-    if (MPI_Bcast(&kernel, sizeof(kernel), MPI_BYTE, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
+    if (MPI_Bcast(&kernel, sizeof(kernel), MPI_BYTE, ROOT_RANK, MPI_COMM_WORLD) != MPI_SUCCESS)
     {
-        perror("Failed broadcast\n");
+        perror("Failed broadcast kernel\n");
+        exit(1);
+    }
+    // BCast SendCount
+    if (MPI_Bcast(sendcount, size * sizeof(*sendcount), MPI_BYTE, ROOT_RANK, MPI_COMM_WORLD) != MPI_SUCCESS)
+    {
+        perror("Failed broadcast sendcount\n");
         exit(1);
     }
 
     // Scatter size of each local array
     int local_mat_size;
-    if (MPI_Scatter(local_mat_sizes, sizeof(int), MPI_BYTE, &local_mat_size, sizeof(int), MPI_BYTE, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
+    if (MPI_Scatter(local_mat_sizes, sizeof(int), MPI_BYTE, &local_mat_size, sizeof(int), MPI_BYTE, ROOT_RANK, MPI_COMM_WORLD) != MPI_SUCCESS)
     {
-        perror("Scatter error 1\n");
+        perror("Scatter error local_mat_sizes\n");
         exit(1);
     }
 
@@ -199,66 +228,63 @@ int main(int argc, char **argv)
     Matrix *local_mat;
     if ((local_mat = malloc(local_mat_size * sizeof(Matrix))) == nil)
     {
-        perror("Malloc error 3\n");
+        perror("Malloc error local_mat\n");
         exit(1);
     }
 
     // Scatterv input matrices based on the number of matrices in each local array of matrices
-    if (MPI_Scatterv(arr_m, sendcount, displs, MPI_BYTE, local_mat, sizeof(*local_mat) * local_mat_size, MPI_BYTE, 0, MPI_COMM_WORLD) != MPI_SUCCESS)
+    if (MPI_Scatterv(arr_m, sendcount, displs, MPI_BYTE, local_mat, sizeof(*local_mat) * local_mat_size, MPI_BYTE, ROOT_RANK, MPI_COMM_WORLD) != MPI_SUCCESS)
     {
-        perror("Scatter error 2\n");
+        perror("Scatter error arr_m\n");
         exit(1);
     }
 
-    int local_result = randomv(rank);
-    int *local_sorted_array;
-    if ((local_sorted_array = malloc(sizeof(int))) == nil)
+    // Create local array to contain range result from OpenMP
+    int *local_results_array;
+    if ((local_results_array = malloc(sizeof(int) * local_mat_size)) == nil)
     {
-        perror("Malloc error 4\n");
+        perror("Malloc error local_results\n");
         exit(1);
     }
-    printf("From rank %d %d", rank, local_result);
 
-    int divisor = 2;
-    int even_size = size % 2 == 0;
-    while (divisor <= size)
+    // Fill in the data based on OpenMP call for every matrices in the local array
+    // <<<<<<<-------OPENMP HERE--------->>>>>>>
+    for (int i = 0; i < local_mat_size; i++)
     {
-        if (even_size)
-        {
-            if (rank % 2 == 0)
-            {
-                int current_length = sizeof(&local_sorted_array) / sizeof(&local_sorted_array[0]);
-                if (current_length < 2)
-                {
-                    if ((local_sorted_array = realloc(local_sorted_array, 2 * current_length * sizeof(int))) == nil)
-                    {
-                        perror("Realloc error from rank %d\n", rank);
-                        exit(1);
-                    }
-                    // Recv from rank + 1
-                    MPI_Recv(&)
-                }
-                else
-                {
-                    // Recv from rank + 2
-                    MPI_Recv(&)
-                }
-            }
-        }
-        else
-        {
-            if (rank % 2 == 0)
-            {
-            }
-        }
-
-        divisor *= 2;
+        // local_results_array[i] = openmp(&local_mat[i]);
+        local_results_array[i] = openmp(rank);
     }
 
-    if (rank == 0)
-    {
-    }
+    // Sort the local results, from 0 to total of array - 1
+    merge_sort(local_results_array, 0, local_mat_size - 1);
 
+    // Recalculate displacement and sendcount for Gatherv
+    if (rank == ROOT_RANK)
+    {
+        for (int i = 0; i < size; i++)
+        {
+            displs[i] = displs[i] / sizeof(Matrix) * sizeof(int);
+            sendcount[i] = sendcount[i] / sizeof(Matrix) * sizeof(int);
+        }
+    }
     MPI_Barrier(MPI_COMM_WORLD);
+
+    // Gather merge-sorted result of each nodes
+    if (MPI_Gatherv(local_results_array, local_mat_size * sizeof(int), MPI_BYTE, global_results_array, sendcount, displs, MPI_BYTE, ROOT_RANK, MPI_COMM_WORLD) != MPI_SUCCESS)
+    {
+        perror("Gather Error global_results\n");
+        exit(1);
+    }
+
+    if (rank == ROOT_RANK)
+    {
+        merge_sort(global_results_array, 0, num_targets - 1);
+        int min_val = global_results_array[0];
+        int max_val = global_results_array[num_targets - 1];
+        int median = get_median(global_results_array, num_targets);
+        long mean = get_floored_mean(global_results_array, num_targets);
+        printf("%d\n%d\n%d\n%ld\n", min_val, max_val, median, mean);
+    }
+
     MPI_Finalize();
 }
