@@ -74,8 +74,8 @@ Matrix convolution(Matrix *kernel, Matrix *target, int thread_count)
 #pragma omp parallel for num_threads(thread_count) private(i, j, k)
     for (int k = 0; k < out.row_eff * out.col_eff; k++)
     {
-        i = k / out.row_eff;
-        j = (k - i*out.row_eff) % out.row_eff;
+        j = k / out.row_eff;
+        i = (k - j*out.row_eff) % out.row_eff;
         out.mat[i][j] = supression_op(kernel, target, i, j);
     }
 
@@ -92,7 +92,7 @@ int get_matrix_datarange(Matrix *m, int thread_count)
     for (int k = 0; k < m->row_eff * m->col_eff; k++)
     {
         j = k / m->row_eff;
-        i = (k - i*m->row_eff) % m->row_eff;
+        i = (k - j*m->row_eff) % m->row_eff;
         el = m->mat[i][j];
         if (el > max)
         {
