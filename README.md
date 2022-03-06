@@ -10,7 +10,7 @@ Untuk menghitung nilai matriks konvolusi, for loop sepanjang baris dan kolom mat
 
 ### OpenMPI
 
-Untuk melakukan distribusi kumpulan matriks yang ada ke setiap rank dengan melakukan scatterv, setelah melakukan distribusi kumpulan matriks ke setiap rank maka opemMPI juga akan melakukan gathering hasil dari konvolusi, selanjutnya akan dilakukan proses sorting menggunakan algoritma merge sort dengan cara mendistribusikan kembali elemen" array ke setiap rank lalu akan di gather kembali.
+Matriks kernel, serta jumlah _thread_ yang digunakan di-_broadcast_ kepada semua proses. Setelah itu, jumlah matriks untuk setiap proses di-_scatter_ kepada setiap proses agar setiap proses dapat mengalokasi array berukuran jumlah tersebut yang sesuai. Dengan menggunakan ukuran tersebut, maka juga akan dilakukan _scatterv_ terhadap semua matriks yang ada sehingga dapat didistribusikan secara merata untuk setiap proses. Setiap proses kemudian akan mengalokasikan array berukuran jumlah matriks tadi untuk menampung hasil kalkulasi _range_ dengan menggunakan OpenMP. Array ini kemudian di-_sort_ secara lokal untuk masing-masing proses, sebelum nantinya akan dikirimkan melalui perintah _gatherv_ kembali kepada _root process_, yaitu proses dengan _rank_ 0. Pada proses 0, array yang menampung semua hasil kalkulasi tersebut akan diurutkan kembali, lalu hasil pengurutan ini merupakan hasil akhir yang akan menjadi bahan perhitungan statistik yang diperlukan.
 
 ## Analisis Eksekusi Terbaik
 
