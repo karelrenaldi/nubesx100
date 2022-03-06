@@ -14,57 +14,71 @@ Matriks kernel, serta jumlah _thread_ yang digunakan di-_broadcast_ kepada semua
 
 ## Analisis Eksekusi Terbaik
 
+1. Cara Kerja Paralelisasi
+   Paralelisasi dicapai menggunakan OpenMPI untuk distribusi matriks antara proses, dan OpenMP untuk distribusi beban antara thread. Skema paralelisasi diimplementasi sebagaimana dijelaskan pada bagian sebelumnya.
+
+2. Waktu Eksekusi Terbaik
+   Untuk TC2, TC3, dan TC4, eksekusi paralel selesai dalam waktu yang lebih depat. Namun speedup terbaik dicapai untuk TC4, dengan jumlah matriks 5000.
+
 ## Perbandingan Hasil Eksekusi Program Secara Serial dan Paralel
+
+Berikut informasi hasil eksekusi :
+
+```shell
+TC1 => serial
+TC2 => parallel
+TC3 => parallel
+TC4 => parallel
+```
+
+Dari informasi diatas, dapat dilihat bahwa semakin banyak jumlah matriks dan ukuran matriks yang
+digunakan, akan meningkatkan performa pemograman parallel. Oleh karena itu kita dapat menyimpulkan
+bahwa untuk kasus test case yang memiliki kapasitas kecil, program paralel tidak lebih baik dari
+serial namun untuk test case yang memiliki kapasitas besar, program paralel akan jauh lebih
+unggul jika dibandingkan dengan program serial.
 
 ## Variasi Eksekusi dan Pengaruh OpenMP dan OpenMPI
 
-## Catatan Eksekusi
-
-### Langkah-Langkah Menggunakan Cluster Server dengan SSH
-
-1. Lakukan SSH kepada salah satu server dengan public IP. Pilihlah satu server saja (lakukan satu command saja), command sebagai berikut:
-
-```
-ssh -i ~/.ssh/k04-02 k04-02@35.240.188.57
-ssh -i ~/.ssh/k04-02 k04-02@34.87.108.45
-ssh -i ~/.ssh/k04-02 k04-02@34.124.168.121
-ssh -i ~/.ssh/k04-02 k04-02@35.198.245.105
-```
-
-SSH dilakukan dengan menggunakan private key yang sudah didownload. Taruhlah private key di dalam folder ~/.ssh yang ada di home. Cara SSH dengan private key tiap os mungkin berbeda.
-
-2. Di dalam remote machine dari SSH di perintah sebelumnya, lakukan SSH terhadap machine lain dengan menggunakan private ip. Jalankan semua command dibawah ini, kecuali private ip dari mesin sekarang. (misal di step sebelumnya ssh server ke-2 maka sekarang hanya perlu ssh ke server 1,3,4)
-
-```
-ssh 10.148.0.22
-ssh 10.148.0.23
-ssh 10.148.0.21
-ssh 10.148.0.20
-```
-
-3. Copy seluruh folder yang ada di local ke semua remote machine dengan menjalankan command dibawah.
-
-```
-scp -r -i ~/.ssh/k04-02 ./test k04-02@35.240.188.57:/home/k04-02/
-scp -r -i ~/.ssh/k04-02 ./test k04-02@34.87.108.45:/home/k04-02/
-scp -r -i ~/.ssh/k04-02 ./test k04-02@34.124.168.121:/home/k04-02/
-scp -r -i ~/.ssh/k04-02 ./test k04-02@35.198.245.105:/home/k04-02/
-```
-
-4. Lakukan kompilasi kode. Lakukan di setiap instance mesin (4 mesin remote) dengan menggunakan command dibawah.
-
 ```shell
-mpicc -o ./bin/.o ./src/<nama-file-1>.c -fopenmp -lm -c \
-    && mpicc -o ./bin/<nama-file-2>.o ./src/<nama-file-2>.c -fopenmp -lm -c \
-    && mpicc -o ./bin/<nama-file-3>.o ./src/<nama-file-3>.c -fopenmp -lm -c \
-    && mpicc -o ./bin/<nama-file-final> ./bin/<nama-file-1>.o ./bin/matrix.o ./bin/utils.o ./bin/mpi_utils.o -fopenmp
+| TC  | Node OpenMPI | Thread OpenMP | Waktu Eksekusi (second) |
+| --- | ------------ | ------------- | ----------------------- |
+| 1   | 2            | 5             | 0.027230                |
+| 1   | 2            | 16            | 0.030819                |
+| 1   | 3            | 5             | 0.043672                |
+| 1   | 3            | 16            | 0.029709                |
+| 1   | 4            | 5             | 0.036623                |
+| 1   | 4            | 16            | 0.037708                |
+| 1S  | -            | -             | 0.008659                |
+| 2   | 2            | 5             | 0.611569                |
+| 2   | 2            | 16            | 0.625597                |
+| 2   | 3            | 5             | 0.538054                |
+| 2   | 3            | 16            | 0.525512                |
+| 2   | 4            | 5             | 0.559031                |
+| 2   | 4            | 16            | 0.494060                |
+| 2S  | -            | -             | 0.698502                |
+| 3   | 2            | 5             | 0.789968                |
+| 3   | 2            | 16            | 0.686185                |
+| 3   | 3            | 5             | 0.785868                |
+| 3   | 3            | 16            | 1.368298                |
+| 3   | 4            | 5             | 1.570319                |
+| 3   | 4            | 16            | 0.835112                |
+| 3S  | -            | -             | 0.677666                |
+| 4   | 2            | 5             | 8.602319                |
+| 4   | 2            | 16            | 8.239505                |
+| 4   | 3            | 5             | 8.936908                |
+| 4   | 3            | 16            | 10.688829               |
+| 4   | 4            | 5             | 13.540155               |
+| 4   | 4            | 16            | 9.101202                |
+| 4S  | -            | -             | 13.078884               |
 ```
 
-5. Menjalankan Kode program yang telah dikompilasi.
+**S adalah waktu eksekusi program secara serial.**
 
-Menjalankan kode test.
+Tabel di atas memperlihatkan perbandingan waktu untuk setiap variasi jumlah _node_ dan _thread_ pada setiap _testcase_ yang ada. Secara umum, dapat terlihat bahwa untuk jumlah _node_ yang sama, program rata-rata menjadi lebih lambat ketika jumlah _thread_ ditingkatkan. Hal ini dikarenakan terdapat _overhead_ yang lebih banyak antara setiap _thread_ yang melakukan pemrosesan, terutama terhadap variabel atau data yang diakses bersamaan. Hal serupa juga terjadi ketika untuk suatu jumlah _thread_ yang sama dan jumlah _node_ ditingkatkan, yaitu _overhead_ yang dihasilkan malah lebih besar akibat banyaknya proses yang bersifat _blocking_ untuk setiap fase pemrosesan.
+Namun demikian, ketika ukuran data yang diproses bertambah, dapat terlihat secara jelas bahwa kecepatan pemrosesan meningkat signifikan dan waktu eksekusi program menjadi jauh lebih baik. Hal ini dapat terlihat pada tabel di atas, yang menunjukkan bahwa _testcase_ 1 dengan jumlah data yang sedikit malah memiliki waktu eksekusi yang lambat untuk program paralel jika dibandingkan dengan program serialnya, tetapi tidak untuk _testcase_ lainnya.
 
-```
-mpirun -np {banyak node} --hostfile ./hostname ./bin/main-test {banyak thread}
-mpirun -np 2 --hostfile ./hostname ./bin/main-test 2
-```
+## Author
+
+1. 13519180 Karel Renaldi
+2. 13519185 Richard Rivaldo
+3. 13519205 Muhammad Rifat Abiwardani
