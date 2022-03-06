@@ -145,11 +145,13 @@ long get_floored_mean(int *n, int length)
 
 int main(int argc, char **argv)
 {
+    double start_time, end_time, duration, runtime;
     if (MPI_Init(&argc, &argv) != MPI_SUCCESS)
     {
         perror("Error initializing MPI\n");
         exit(1);
     }
+    start_time = MPI_Wtime();
 
     int size, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -267,7 +269,6 @@ int main(int argc, char **argv)
             sendcount[i] = sendcount[i] / sizeof(Matrix) * sizeof(int);
         }
     }
-    MPI_Barrier(MPI_COMM_WORLD);
 
     // Gather merge-sorted result of each nodes
     if (MPI_Gatherv(local_results_array, local_mat_size * sizeof(int), MPI_BYTE, global_results_array, sendcount, displs, MPI_BYTE, ROOT_RANK, MPI_COMM_WORLD) != MPI_SUCCESS)
@@ -276,6 +277,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    // Output the results
     if (rank == ROOT_RANK)
     {
         merge_sort(global_results_array, 0, num_targets - 1);
@@ -284,6 +286,19 @@ int main(int argc, char **argv)
         int median = get_median(global_results_array, num_targets);
         long mean = get_floored_mean(global_results_array, num_targets);
         printf("%d\n%d\n%d\n%ld\n", min_val, max_val, median, mean);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    // Calculate time
+    end_time = MPI_Wtime();
+    duration = end_time - start_time;
+
+    // Find maximum runtime from each process as the final runtime
+    MPI_Reduce(&duration, &runtime, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+    if (rank == ROOT_RANK)
+    {
+        printf("Total runtime: %f\n", runtime);
     }
 
     MPI_Finalize();
