@@ -224,11 +224,11 @@ int main(int argc, char **argv)
     int *local_mat_sizes = malloc(size * sizeof(int));
     int *sendcount = malloc(size * (sizeof(int)));
     int *displs = malloc(size * (sizeof(int)));
-    int thread_count = 8;
+    int thread_count;
 
     if (rank == ROOT_RANK)
     {
-        printf("ARG:%s\n", argv[1]);
+        thread_count = atoi(argv[1]);
         // Scan users' input
         int kernel_row, kernel_col, target_row, target_col;
         scanf("%d %d", &kernel_row, &kernel_col);
