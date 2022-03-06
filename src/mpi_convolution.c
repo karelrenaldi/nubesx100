@@ -48,60 +48,70 @@ Matrix input_matrix(int nrow, int ncol)
     return input;
 }
 
-int supression_op(Matrix *kernel, Matrix *target, int row, int col) {
-	int intermediate_sum = 0;
-	for (int i = 0; i < kernel->row_eff; i++) {
-		for (int j = 0; j < kernel->col_eff; j++) {
-			intermediate_sum += kernel->mat[i][j] * target->mat[row + i][col + j];
-		}
-	}
+int supression_op(Matrix *kernel, Matrix *target, int row, int col)
+{
+    int intermediate_sum = 0;
+    for (int i = 0; i < kernel->row_eff; i++)
+    {
+        for (int j = 0; j < kernel->col_eff; j++)
+        {
+            intermediate_sum += kernel->mat[i][j] * target->mat[row + i][col + j];
+        }
+    }
 
-	return intermediate_sum;
+    return intermediate_sum;
 }
 
-Matrix convolution(Matrix *kernel, Matrix *target, int thread_count) {
-	Matrix out;
+Matrix convolution(Matrix *kernel, Matrix *target, int thread_count)
+{
+    Matrix out;
     int i, j, k;
-	int out_row_eff = target->row_eff - kernel->row_eff + 1;
-	int out_col_eff = target->col_eff - kernel->col_eff + 1;
-	
-	init_matrix(&out, out_row_eff, out_col_eff);
+    int out_row_eff = target->row_eff - kernel->row_eff + 1;
+    int out_col_eff = target->col_eff - kernel->col_eff + 1;
 
-    #pragma omp parallel for num_threads(thread_count) private(i, j, k)
-	for (int i = 0; i < out.row_eff; i++) {
-		for (int j = 0; j < out.col_eff; j++) {
-			out.mat[i][j] = supression_op(kernel, target, i, j);
-		}
-	}
+    init_matrix(&out, out_row_eff, out_col_eff);
 
-	return out;
+#pragma omp parallel for num_threads(thread_count) private(i, j, k)
+    for (int i = 0; i < out.row_eff; i++)
+    {
+        for (int j = 0; j < out.col_eff; j++)
+        {
+            out.mat[i][j] = supression_op(kernel, target, i, j);
+        }
+    }
+
+    return out;
 }
 
-int get_matrix_datarange(Matrix *m, int thread_count) {
+int get_matrix_datarange(Matrix *m, int thread_count)
+{
     int i, j, k, el;
-	int max = DATAMIN;
-	int min = DATAMAX;
+    int max = DATAMIN;
+    int min = DATAMAX;
 
-    #pragma omp parallel for num_threads(thread_count) private (i, j, k, el)
-	for (int k = 0; k < m->row_eff*m->col_eff; k++) {
+#pragma omp parallel for num_threads(thread_count) private(i, j, k, el)
+    for (int k = 0; k < m->row_eff * m->col_eff; k++)
+    {
         i = k / m->row_eff;
         j = k % m->col_eff;
         el = m->mat[i][j];
-        if (el > max) {
-            #pragma omp critical
+        if (el > max)
+        {
+#pragma omp critical
             {
                 max = el;
             }
         }
-        if (el < min) {
-            #pragma omp critical
+        if (el < min)
+        {
+#pragma omp critical
             {
                 min = el;
             }
         }
-	}
+    }
 
-	return max - min;
+    return max - min;
 }
 
 void print_matrix(Matrix *m)
@@ -174,7 +184,7 @@ int integer_ceil(int a, int b)
     return a / b + (a % b != 0);
 }
 
-int openmp(Matrix *kernel, Matrix *target, int thread_count)
+int calculate_range(Matrix *kernel, Matrix *target, int thread_count)
 {
     Matrix out = convolution(kernel, target, thread_count);
 
@@ -250,7 +260,7 @@ int main(int argc, char **argv)
         int remaining_matrices = num_targets;
         for (int i = 0; i < size; i++)
         {
-            int n = integer_ceil(remaining_matrices, size);
+            int n = integer_ceil(remaining_matrices, size - i);
             remaining_matrices -= n;
 
             sendcount[i] = n * sizeof(Matrix);
@@ -315,8 +325,7 @@ int main(int argc, char **argv)
     // <<<<<<<-------OPENMP HERE--------->>>>>>>
     for (int i = 0; i < local_mat_size; i++)
     {
-        // local_results_array[i] = openmp(&local_mat[i]);
-        local_results_array[i] = openmp(&kernel, local_mat, thread_count);
+        local_results_array[i] = calculate_range(&kernel, &local_mat[i], thread_count);
     }
 
     // Sort the local results, from 0 to total of array - 1
