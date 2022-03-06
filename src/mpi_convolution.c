@@ -3,6 +3,7 @@
 #include <math.h>
 #include <mpi.h>
 #include <time.h>
+#include <omp.h>
 
 #define nil NULL
 #define NMAX 100
@@ -45,6 +46,62 @@ Matrix input_matrix(int nrow, int ncol)
     }
 
     return input;
+}
+
+int supression_op(Matrix *kernel, Matrix *target, int row, int col) {
+	int intermediate_sum = 0;
+	for (int i = 0; i < kernel->row_eff; i++) {
+		for (int j = 0; j < kernel->col_eff; j++) {
+			intermediate_sum += kernel->mat[i][j] * target->mat[row + i][col + j];
+		}
+	}
+
+	return intermediate_sum;
+}
+
+Matrix convolution(Matrix *kernel, Matrix *target, int thread_count) {
+	Matrix out;
+    int i, j, k;
+	int out_row_eff = target->row_eff - kernel->row_eff + 1;
+	int out_col_eff = target->col_eff - kernel->col_eff + 1;
+	
+	init_matrix(&out, out_row_eff, out_col_eff);
+
+    #pragma omp parallel for num_threads(thread_count) private(i, j, k)
+	for (int i = 0; i < out.row_eff; i++) {
+		for (int j = 0; j < out.col_eff; j++) {
+			out.mat[i][j] = supression_op(kernel, target, i, j);
+		}
+	}
+
+	return out;
+}
+
+int get_matrix_datarange(Matrix *m, int thread_count) {
+    int i, j, k, el;
+	int max = DATAMIN;
+	int min = DATAMAX;
+
+    #pragma omp parallel for num_threads(thread_count) private (i, j, k, el)
+	for (int k = 0; k < m->row_eff*m->col_eff; k++) {
+        i = k / m->row_eff;
+        j = k % m->col_eff;
+        el = m->mat[i][j];
+        if (el > max) {
+            #pragma omp critical
+            {
+                max = el;
+            }
+        }
+        if (el < min) {
+            #pragma omp critical
+            {
+                min = el;
+            }
+        }
+	}
+
+	return max - min;
 }
 
 void print_matrix(Matrix *m)
@@ -117,10 +174,13 @@ int integer_ceil(int a, int b)
     return a / b + (a % b != 0);
 }
 
-int openmp(int rank)
+int openmp(Matrix *kernel, Matrix *target, int thread_count)
 {
-    srand(time(nil) + rank);
-    return rand();
+    Matrix out = convolution(kernel, target, thread_count);
+
+    int datarange = get_matrix_datarange(&out, thread_count);
+
+    return datarange;
 }
 
 int get_median(int *n, int length)
@@ -164,9 +224,11 @@ int main(int argc, char **argv)
     int *local_mat_sizes = malloc(size * sizeof(int));
     int *sendcount = malloc(size * (sizeof(int)));
     int *displs = malloc(size * (sizeof(int)));
+    int thread_count;
 
     if (rank == ROOT_RANK)
     {
+        thread_count = atoi(argv[1]);
         // Scan users' input
         int kernel_row, kernel_col, target_row, target_col;
         scanf("%d %d", &kernel_row, &kernel_col);
@@ -254,7 +316,7 @@ int main(int argc, char **argv)
     for (int i = 0; i < local_mat_size; i++)
     {
         // local_results_array[i] = openmp(&local_mat[i]);
-        local_results_array[i] = openmp(rank);
+        local_results_array[i] = openmp(&kernel, local_mat, thread_count);
     }
 
     // Sort the local results, from 0 to total of array - 1
