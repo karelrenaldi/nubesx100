@@ -36,7 +36,6 @@ ssh 10.148.0.22
 ssh 10.148.0.23
 ssh 10.148.0.21
 ssh 10.148.0.20
-
 ```
 
 3. Copy seluruh folder yang ada di local ke semua remote machine dengan menjalankan command dibawah.
@@ -50,8 +49,11 @@ scp -r -i ~/.ssh/k04-02 ./test k04-02@35.198.245.105:/home/k04-02/
 
 4. Lakukan kompilasi kode. Lakukan di setiap instance mesin (4 mesin remote) dengan menggunakan command dibawah.
 
-```
-mpicc -o ./bin/main-test.o ./test/test.c -fopenmp -lm -c && mpicc -o ./bin/main-test ./bin/main-test.o -fopenmp
+```shell
+mpicc -o ./bin/.o ./src/<nama-file-1>.c -fopenmp -lm -c \
+    && mpicc -o ./bin/<nama-file-2>.o ./src/<nama-file-2>.c -fopenmp -lm -c \
+    && mpicc -o ./bin/<nama-file-3>.o ./src/<nama-file-3>.c -fopenmp -lm -c \
+    && mpicc -o ./bin/<nama-file-final> ./bin/<nama-file-1>.o ./bin/matrix.o ./bin/utils.o ./bin/mpi_utils.o -fopenmp
 ```
 
 5. Menjalankan Kode program yang telah dikompilasi.
