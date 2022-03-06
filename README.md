@@ -6,6 +6,8 @@ Sistem Paralel dan Terdistribusi - Konvolusi Matriks
 
 ### OpenMP
 
+Untuk menghitung nilai matriks konvolusi, for loop sepanjang baris dan kolom matriks output diurai menjadi loop sepanjang array yang di-flatten, kemudian dilakukan parallel for loop dengan num_threads sebesar thread_count. Untuk kemudian mencari range terbesar pada matriks konvolusi, matriks konvolusi diurai menjadi array flat kembali, kemudian untuk setiap elemen, jika lebih besar daripada max kini, maka update nilai max dalam critical section. Jika lebih kecil daripada min kini, maka update nilai min dalam critical section. Setelah selesai mengiterasi seluruh matriks konvolusi, nilai max dikurangi nilai min dikembalikan.
+
 ### OpenMPI
 
 ## Analisis Eksekusi Terbaik
