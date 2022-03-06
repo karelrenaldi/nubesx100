@@ -258,15 +258,17 @@ int main(int argc, char **argv)
 
         // Map Scatterv arguments
         int remaining_matrices = num_targets;
+        int current_displacement = 0;
         for (int i = 0; i < size; i++)
         {
             int n = integer_ceil(remaining_matrices, size - i);
             remaining_matrices -= n;
 
             sendcount[i] = n * sizeof(Matrix);
-            displs[i] = i == 0 ? 0 : i * sendcount[i - 1];
+            displs[i] = current_displacement;
 
             local_mat_sizes[i] = n;
+            current_displacement += sendcount[i];
         }
 
         // Malloc arrays
@@ -275,6 +277,13 @@ int main(int argc, char **argv)
             perror("Malloc error global_results\n");
             exit(1);
         }
+    }
+
+    // BCast Thread Count
+    if (MPI_Bcast(&thread_count, sizeof(thread_count), MPI_BYTE, ROOT_RANK, MPI_COMM_WORLD) != MPI_SUCCESS)
+    {
+        perror("Failed broadcast thread count\n");
+        exit(1);
     }
 
     // BCast Kernel
@@ -322,7 +331,6 @@ int main(int argc, char **argv)
     }
 
     // Fill in the data based on OpenMP call for every matrices in the local array
-    // <<<<<<<-------OPENMP HERE--------->>>>>>>
     for (int i = 0; i < local_mat_size; i++)
     {
         local_results_array[i] = calculate_range(&kernel, &local_mat[i], thread_count);
