@@ -1,28 +1,28 @@
 # IF3230-K04-nubesx100
 
-Sistem Paralel dan Terdistribusi - Konvolusi Matriks
+Parallel and Distributed Systems - Matrix Convolution
 
-## Skema Paralelisasi
+## Parallelization Scheme
 
 ### OpenMP
 
-Untuk menghitung nilai matriks konvolusi, for loop sepanjang baris dan kolom matriks output diurai menjadi loop sepanjang array yang di-flatten, kemudian dilakukan parallel for loop dengan num_threads sebesar thread_count. Untuk kemudian mencari range terbesar pada matriks konvolusi, matriks konvolusi diurai menjadi array flat kembali, kemudian untuk setiap elemen, jika lebih besar daripada max kini, maka update nilai max dalam critical section. Jika lebih kecil daripada min kini, maka update nilai min dalam critical section. Setelah selesai mengiterasi seluruh matriks konvolusi, nilai max dikurangi nilai min dikembalikan.
+To compute the convolution matrix values, the for-loop over the rows and columns of the output matrix is flattened into a single array loop. Then, a parallel for-loop is executed with `num_threads` set to `thread_count`. To find the maximum range in the convolution matrix, the matrix is flattened again into an array. Each element is then compared: if it is greater than the current max, the max value is updated in a critical section; if it is smaller than the current min, the min value is updated similarly. Once all elements are processed, the final range is computed as `max - min`.
 
 ### OpenMPI
 
-Matriks kernel, serta jumlah _thread_ yang digunakan di-_broadcast_ kepada semua proses. Setelah itu, jumlah matriks untuk setiap proses di-_scatter_ kepada setiap proses agar setiap proses dapat mengalokasi array berukuran jumlah tersebut yang sesuai. Dengan menggunakan ukuran tersebut, maka juga akan dilakukan _scatterv_ terhadap semua matriks yang ada sehingga dapat didistribusikan secara merata untuk setiap proses. Setiap proses kemudian akan mengalokasikan array berukuran jumlah matriks tadi untuk menampung hasil kalkulasi _range_ dengan menggunakan OpenMP. Array ini kemudian di-_sort_ secara lokal untuk masing-masing proses, sebelum nantinya akan dikirimkan melalui perintah _gatherv_ kembali kepada _root process_, yaitu proses dengan _rank_ 0. Pada proses 0, array yang menampung semua hasil kalkulasi tersebut akan diurutkan kembali, lalu hasil pengurutan ini merupakan hasil akhir yang akan menjadi bahan perhitungan statistik yang diperlukan.
+The kernel matrix and the number of threads used are broadcasted to all processes. The matrix data is then scattered among the processes, allowing each process to allocate an appropriate array size. Using this size, a scatterv operation distributes the matrix data evenly across processes. Each process then allocates an array to store the calculated range using OpenMP. This array is locally sorted before being gathered back to the root process (rank 0) using a gatherv operation. At process 0, the collected results are sorted again to generate the final output used for statistical analysis.
 
-## Analisis Eksekusi Terbaik
+## Best Execution Analysis
 
-1. Cara Kerja Paralelisasi
-   Paralelisasi dicapai menggunakan OpenMPI untuk distribusi matriks antara proses, dan OpenMP untuk distribusi beban antara thread. Skema paralelisasi diimplementasi sebagaimana dijelaskan pada bagian sebelumnya.
+1. **Parallelization Strategy**  
+   Parallelization is achieved using OpenMPI for distributing matrices across processes and OpenMP for distributing workloads across threads. The parallelization scheme follows the approach described earlier.
 
-2. Waktu Eksekusi Terbaik
-   Untuk TC2, TC3, dan TC4, eksekusi paralel selesai dalam waktu yang lebih depat. Namun speedup terbaik dicapai untuk TC4, dengan jumlah matriks 5000.
+2. **Best Execution Time**  
+   For TC2, TC3, and TC4, parallel execution completes faster. However, the best speedup is achieved for TC4, which processes 5000 matrices.
 
-## Perbandingan Hasil Eksekusi Program Secara Serial dan Paralel
+## Comparison of Serial and Parallel Execution
 
-Berikut informasi hasil eksekusi :
+Execution results are as follows:
 
 ```shell
 TC1 => serial
@@ -31,16 +31,12 @@ TC3 => parallel
 TC4 => parallel
 ```
 
-Dari informasi diatas, dapat dilihat bahwa semakin banyak jumlah matriks dan ukuran matriks yang
-digunakan, akan meningkatkan performa pemograman parallel. Oleh karena itu kita dapat menyimpulkan
-bahwa untuk kasus test case yang memiliki kapasitas kecil, program paralel tidak lebih baik dari
-serial namun untuk test case yang memiliki kapasitas besar, program paralel akan jauh lebih
-unggul jika dibandingkan dengan program serial.
+From this data, it is evident that increasing the number and size of matrices improves parallel performance. Consequently, for small test cases, the parallel program does not significantly outperform the serial program. However, for larger test cases, the parallel program is significantly more efficient.
 
-## Variasi Eksekusi dan Pengaruh OpenMP dan OpenMPI
+## Execution Variations and the Impact of OpenMP and OpenMPI
 
 ```shell
-| TC  | Node OpenMPI | Thread OpenMP | Waktu Eksekusi (second) |
+| TC  | OpenMPI Nodes | OpenMP Threads | Execution Time (seconds) |
 | --- | ------------ | ------------- | ----------------------- |
 | 1   | 2            | 5             | 0.027230                |
 | 1   | 2            | 16            | 0.030819                |
@@ -72,13 +68,14 @@ unggul jika dibandingkan dengan program serial.
 | 4S  | -            | -             | 13.078884               |
 ```
 
-**S adalah waktu eksekusi program secara serial.**
+**S denotes serial execution time.**
 
-Tabel di atas memperlihatkan perbandingan waktu untuk setiap variasi jumlah _node_ dan _thread_ pada setiap _testcase_ yang ada. Secara umum, dapat terlihat bahwa untuk jumlah _node_ yang sama, program rata-rata menjadi lebih lambat ketika jumlah _thread_ ditingkatkan. Hal ini dikarenakan terdapat _overhead_ yang lebih banyak antara setiap _thread_ yang melakukan pemrosesan, terutama terhadap variabel atau data yang diakses bersamaan. Hal serupa juga terjadi ketika untuk suatu jumlah _thread_ yang sama dan jumlah _node_ ditingkatkan, yaitu _overhead_ yang dihasilkan malah lebih besar akibat banyaknya proses yang bersifat _blocking_ untuk setiap fase pemrosesan.
-Namun demikian, ketika ukuran data yang diproses bertambah, dapat terlihat secara jelas bahwa kecepatan pemrosesan meningkat signifikan dan waktu eksekusi program menjadi jauh lebih baik. Hal ini dapat terlihat pada tabel di atas, yang menunjukkan bahwa _testcase_ 1 dengan jumlah data yang sedikit malah memiliki waktu eksekusi yang lambat untuk program paralel jika dibandingkan dengan program serialnya, tetapi tidak untuk _testcase_ lainnya.
+The table above shows execution time variations for different numbers of OpenMPI nodes and OpenMP threads in each test case. Generally, for the same number of nodes, increasing the number of threads tends to slow down execution due to increased overhead from thread synchronization, especially when accessing shared variables or data. A similar effect occurs when increasing the number of nodes for the same number of threads, leading to greater overhead due to process blocking in various execution phases.
 
-## Author
+However, as data size increases, processing speed significantly improves, and parallel execution time becomes much better. The table shows that for Test Case 1 (small data size), the parallel program performs worse than the serial one, whereas for larger test cases, parallel execution significantly outperforms the serial approach.
 
-1. 13519180 Karel Renaldi
-2. 13519185 Richard Rivaldo
-3. 13519205 Muhammad Rifat Abiwardani
+## Authors
+
+1. **13519180** Karel Renaldi  
+2. **13519185** Richard Rivaldo  
+3. **13519205** Muhammad Rifat Abiwardani
